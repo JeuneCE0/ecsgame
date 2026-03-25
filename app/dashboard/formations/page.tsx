@@ -1,5 +1,11 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import {
+  getPhaseForLevel,
+  getUnlockedModules,
+  getLockedModules,
+  getClassModules,
+} from '@/lib/game/curriculum';
 import FormationsClient from './formations-client';
 
 export const dynamic = 'force-dynamic';
@@ -13,44 +19,42 @@ export default async function FormationsPage() {
 
   if (!user) redirect('/login');
 
-  const { data: formations, error: formationsError } = await supabase
-    .from('formations')
-    .select('id, title, description, thumbnail_url, duration_minutes, xp_reward, is_published, created_at')
-    .eq('is_published', true)
-    .order('created_at', { ascending: false });
+  /* Fetch profile + user_formations in parallel */
+  const [profileResult, userFormationsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('level, total_xp, business_type')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('user_formations')
+      .select('id, formation_id, progress_percent, completed_at, created_at')
+      .eq('user_id', user.id),
+  ]);
 
-  if (formationsError) {
-    return (
-      <div className="card-ecs text-center py-12">
-        <p className="text-red-400 text-sm">Erreur lors du chargement des formations.</p>
-      </div>
-    );
-  }
-
-  const { data: userFormations, error: userFormationsError } = await supabase
-    .from('user_formations')
-    .select('id, formation_id, progress_percent, completed_at, created_at')
-    .eq('user_id', user.id);
+  const { data: profile } = profileResult;
+  const { data: userFormations, error: userFormationsError } = userFormationsResult;
 
   if (userFormationsError) {
     return (
       <div className="card-ecs text-center py-12">
-        <p className="text-red-400 text-sm">Erreur lors du chargement de la progression.</p>
+        <p className="text-red-400 text-sm">
+          Erreur lors du chargement de la progression.
+        </p>
       </div>
     );
   }
 
-  type FormationRow = {
-    id: string;
-    title: string;
-    description: string;
-    thumbnail_url: string | null;
-    duration_minutes: number;
-    xp_reward: number;
-    is_published: boolean;
-    created_at: string;
-  };
+  const playerLevel = (profile?.level as number) ?? 1;
+  const businessType = (profile?.business_type as string | null) ?? null;
 
+  /* Derive curriculum data from the player level */
+  const currentPhase = getPhaseForLevel(playerLevel);
+  const unlockedModules = getUnlockedModules(playerLevel);
+  const lockedModules = getLockedModules(playerLevel);
+  const classModules = getClassModules(businessType);
+
+  /* Build a map of formation_id -> progress for the client */
   type UserFormationRow = {
     id: string;
     formation_id: string;
@@ -59,25 +63,61 @@ export default async function FormationsPage() {
     created_at: string;
   };
 
-  const typedFormations = (formations ?? []) as FormationRow[];
   const typedUserFormations = (userFormations ?? []) as UserFormationRow[];
 
-  const userFormationMap = new Map(typedUserFormations.map((uf) => [uf.formation_id, uf]));
+  const progressMap: Record<
+    string,
+    { id: string; progressPercent: number; completedAt: string | null }
+  > = {};
 
-  const formationsWithProgress = typedFormations.map((formation) => {
-    const uf = userFormationMap.get(formation.id);
-    return {
-      ...formation,
-      user_formation: uf
-        ? {
-            id: uf.id,
-            progress_percent: uf.progress_percent,
-            completed_at: uf.completed_at,
-            created_at: uf.created_at,
-          }
-        : null,
+  for (const uf of typedUserFormations) {
+    progressMap[uf.formation_id] = {
+      id: uf.id,
+      progressPercent: uf.progress_percent,
+      completedAt: uf.completed_at,
     };
-  });
+  }
 
-  return <FormationsClient formations={formationsWithProgress} />;
+  return (
+    <FormationsClient
+      playerLevel={playerLevel}
+      businessType={businessType}
+      currentPhaseName={currentPhase?.phase.name ?? 'Les Fondations'}
+      currentPhaseRange={
+        currentPhase
+          ? [currentPhase.phase.levelRange[0], currentPhase.phase.levelRange[1]]
+          : [1, 3]
+      }
+      unlockedModules={unlockedModules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        lessons: [...m.lessons],
+        xpReward: m.xpReward,
+        unlockLevel: m.unlockLevel,
+        estimatedMinutes: m.estimatedMinutes,
+        actionItem: m.actionItem,
+      }))}
+      lockedModules={lockedModules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        lessons: [...m.lessons],
+        xpReward: m.xpReward,
+        unlockLevel: m.unlockLevel,
+        estimatedMinutes: m.estimatedMinutes,
+        actionItem: m.actionItem,
+      }))}
+      classModules={classModules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        lessons: [...m.lessons],
+        xpReward: m.xpReward,
+        estimatedMinutes: m.estimatedMinutes,
+        actionItem: m.actionItem,
+      }))}
+      progressMap={progressMap}
+    />
+  );
 }

@@ -1,10 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { formatXP } from '@/lib/utils';
+import { cn, formatXP, getXPProgressPercent } from '@/lib/utils';
 import { LEVEL_TITLES, BADGE_RARITIES } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
+import {
+  Star,
+  Flame,
+  Trophy,
+  Target,
+  BookOpen,
+  Shield,
+  Clock,
+  X,
+  Save,
+  Pencil,
+  ExternalLink,
+  ChevronRight,
+} from 'lucide-react';
+
+/* -------------------------------------------------------------------------- */
+/*                                   Types                                    */
+/* -------------------------------------------------------------------------- */
 
 interface ProfileData {
   id: string;
@@ -18,6 +36,12 @@ interface ProfileData {
   last_active_date: string | null;
   created_at: string;
   organization_id: string | null;
+  business_type: string | null;
+  business_name: string | null;
+  bio: string | null;
+  goals: string[] | null;
+  social_links: Record<string, string> | null;
+  experience_level: string | null;
 }
 
 interface BadgeData {
@@ -34,6 +58,15 @@ interface BadgeData {
   };
 }
 
+interface AllBadgeData {
+  id: string;
+  name: string;
+  description: string;
+  icon_url: string | null;
+  rarity: string;
+  xp_bonus: number;
+}
+
 interface XPEventData {
   id: string;
   source: string;
@@ -46,10 +79,37 @@ interface XPEventData {
 interface ProfileClientProps {
   profile: ProfileData;
   badges: BadgeData[];
+  allBadges: AllBadgeData[];
   xpEvents: XPEventData[];
   questsCompleted: number;
+  formationsCompleted: number;
   badgesEarned: number;
+  currentLevelXP: number;
+  nextLevelXP: number;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                 Constants                                  */
+/* -------------------------------------------------------------------------- */
+
+const BUSINESS_TYPE_CONFIG: Record<string, { icon: string; label: string; color: string }> = {
+  agence: { icon: '\uD83C\uDFE2', label: 'Agence', color: 'from-blue-500/20 to-blue-600/10' },
+  coach: { icon: '\uD83C\uDFAF', label: 'Coach', color: 'from-green-500/20 to-green-600/10' },
+  createur: { icon: '\uD83C\uDFAC', label: 'Cr\u00e9ateur', color: 'from-pink-500/20 to-pink-600/10' },
+  freelance: { icon: '\uD83D\uDCBB', label: 'Freelance', color: 'from-cyan-500/20 to-cyan-600/10' },
+  saas: { icon: '\uD83D\uDE80', label: 'SaaS', color: 'from-violet-500/20 to-violet-600/10' },
+  ecommerce: { icon: '\uD83D\uDED2', label: 'E-commerce', color: 'from-orange-500/20 to-orange-600/10' },
+  immobilier: { icon: '\uD83C\uDFE0', label: 'Immobilier', color: 'from-emerald-500/20 to-emerald-600/10' },
+  mlm: { icon: '\uD83E\uDD1D', label: 'MLM', color: 'from-amber-500/20 to-amber-600/10' },
+  consultant: { icon: '\uD83D\uDCCA', label: 'Consultant', color: 'from-indigo-500/20 to-indigo-600/10' },
+};
+
+const EXPERIENCE_LEVELS: Record<string, { label: string; stars: number }> = {
+  debutant: { label: 'D\u00e9butant', stars: 1 },
+  intermediaire: { label: 'Interm\u00e9diaire', stars: 2 },
+  avance: { label: 'Avanc\u00e9', stars: 3 },
+  expert: { label: 'Expert', stars: 4 },
+};
 
 const SOURCE_LABELS: Record<string, string> = {
   quest_completion: 'Qu\u00eate',
@@ -62,60 +122,6 @@ const SOURCE_LABELS: Record<string, string> = {
   referral: 'Parrainage',
   badge_earned: 'Badge obtenu',
   admin_grant: 'Attribution admin',
-};
-
-const SOURCE_ICONS: Record<string, React.ReactNode> = {
-  quest_completion: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  call_booked: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-    </svg>
-  ),
-  deal_closed: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  lead_generated: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-    </svg>
-  ),
-  formation_completed: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
-    </svg>
-  ),
-  streak_bonus: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
-    </svg>
-  ),
-  manual_log: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-    </svg>
-  ),
-  referral: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-    </svg>
-  ),
-  badge_earned: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-    </svg>
-  ),
-  admin_grant: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
 };
 
 const RARITY_GLOW: Record<string, string> = {
@@ -131,6 +137,19 @@ const RARITY_BORDER: Record<string, string> = {
   epic: 'border-purple-500/30 hover:border-purple-500/50',
   legendary: 'border-[#FFBF00]/30 hover:border-[#FFBF00]/50',
 };
+
+const SOCIAL_LINK_OPTIONS = [
+  { key: 'website', label: 'Site web', placeholder: 'https://monsite.com' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/...' },
+  { key: 'twitter', label: 'Twitter / X', placeholder: 'https://x.com/...' },
+  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+  { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@...' },
+  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                              Helper Functions                              */
+/* -------------------------------------------------------------------------- */
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -155,6 +174,10 @@ function formatRelativeDate(dateStr: string): string {
   return formatDate(dateStr);
 }
 
+/* -------------------------------------------------------------------------- */
+/*                             Animation Configs                              */
+/* -------------------------------------------------------------------------- */
+
 const pageVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
@@ -169,69 +192,374 @@ const childVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 };
 
+/* -------------------------------------------------------------------------- */
+/*                          Edit Profile Modal Types                          */
+/* -------------------------------------------------------------------------- */
+
+interface EditFormState {
+  full_name: string;
+  business_type: string;
+  business_name: string;
+  bio: string;
+  goals: string[];
+  social_links: Record<string, string>;
+  experience_level: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                           Edit Profile Modal                               */
+/* -------------------------------------------------------------------------- */
+
+function EditProfileModal({
+  profile,
+  isOpen,
+  onClose,
+}: {
+  profile: ProfileData;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<EditFormState>({
+    full_name: profile.full_name,
+    business_type: profile.business_type ?? '',
+    business_name: profile.business_name ?? '',
+    bio: profile.bio ?? '',
+    goals: profile.goals ?? [],
+    social_links: profile.social_links ?? {},
+    experience_level: profile.experience_level ?? '',
+  });
+  const [newGoal, setNewGoal] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (!form.full_name.trim()) return;
+    setSaving(true);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: form.full_name.trim(),
+        business_type: form.business_type || null,
+        business_name: form.business_name.trim() || null,
+        bio: form.bio.trim() || null,
+        goals: form.goals.length > 0 ? form.goals : null,
+        social_links: Object.keys(form.social_links).length > 0 ? form.social_links : null,
+        experience_level: form.experience_level || null,
+      })
+      .eq('id', profile.id);
+
+    setSaving(false);
+
+    if (!error) {
+      window.location.reload();
+    }
+  }, [form, profile.id]);
+
+  const addGoal = useCallback(() => {
+    if (newGoal.trim() && form.goals.length < 5) {
+      setForm((prev) => ({ ...prev, goals: [...prev.goals, newGoal.trim()] }));
+      setNewGoal('');
+    }
+  }, [newGoal, form.goals]);
+
+  const removeGoal = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      goals: prev.goals.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const updateSocialLink = useCallback((key: string, value: string) => {
+    setForm((prev) => {
+      const links = { ...prev.social_links };
+      if (value.trim()) {
+        links[key] = value.trim();
+      } else {
+        delete links[key];
+      }
+      return { ...prev, social_links: links };
+    });
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0C0C0C]/95 backdrop-blur-xl p-6 md:p-8"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-display text-xl font-bold text-white">
+                Modifier le profil
+              </h2>
+              <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Nom d&apos;affichage
+                </label>
+                <input
+                  type="text"
+                  value={form.full_name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 outline-none focus:border-[#FFBF00]/40 focus:ring-1 focus:ring-[#FFBF00]/20 transition-colors"
+                />
+              </div>
+
+              {/* Business type */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Type d&apos;activit&eacute;
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(BUSINESS_TYPE_CONFIG).map(([key, config]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, business_type: prev.business_type === key ? '' : key }))}
+                      className={cn(
+                        'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
+                        form.business_type === key
+                          ? 'border-[#FFBF00]/40 bg-[#FFBF00]/10 text-[#FFBF00]'
+                          : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:text-white/80'
+                      )}
+                    >
+                      <span>{config.icon}</span>
+                      <span className="truncate">{config.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Business name */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Nom de l&apos;entreprise
+                </label>
+                <input
+                  type="text"
+                  value={form.business_name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, business_name: e.target.value }))}
+                  placeholder="Mon entreprise"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 outline-none focus:border-[#FFBF00]/40 focus:ring-1 focus:ring-[#FFBF00]/20 transition-colors"
+                />
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Bio
+                </label>
+                <textarea
+                  value={form.bio}
+                  onChange={(e) => setForm((prev) => ({ ...prev, bio: e.target.value }))}
+                  placeholder="Parle-nous de toi en quelques mots..."
+                  rows={3}
+                  maxLength={300}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 outline-none focus:border-[#FFBF00]/40 focus:ring-1 focus:ring-[#FFBF00]/20 transition-colors resize-none"
+                />
+                <p className="text-xs text-white/20 mt-1 text-right">
+                  {form.bio.length}/300
+                </p>
+              </div>
+
+              {/* Experience level */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Niveau d&apos;exp&eacute;rience
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {Object.entries(EXPERIENCE_LEVELS).map(([key, config]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, experience_level: prev.experience_level === key ? '' : key }))}
+                      className={cn(
+                        'flex flex-col items-center gap-1 px-3 py-3 rounded-xl border text-sm transition-all',
+                        form.experience_level === key
+                          ? 'border-[#FFBF00]/40 bg-[#FFBF00]/10 text-[#FFBF00]'
+                          : 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20'
+                      )}
+                    >
+                      <span className="text-xs">
+                        {Array.from({ length: config.stars }, () => '\u2B50').join('')}
+                      </span>
+                      <span className="font-medium text-xs">{config.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Goals */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Objectifs (max 5)
+                </label>
+                <div className="space-y-2">
+                  {form.goals.map((goal, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white/80">
+                        {goal}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeGoal(i)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {form.goals.length < 5 && (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newGoal}
+                        onChange={(e) => setNewGoal(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addGoal();
+                          }
+                        }}
+                        placeholder="Ajouter un objectif..."
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/20 outline-none focus:border-[#FFBF00]/40 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={addGoal}
+                        disabled={!newGoal.trim()}
+                        className="px-4 py-2.5 rounded-xl bg-[#FFBF00]/10 text-[#FFBF00] text-sm font-medium border border-[#FFBF00]/20 hover:bg-[#FFBF00]/20 transition-colors disabled:opacity-40"
+                      >
+                        Ajouter
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Social links */}
+              <div>
+                <label className="block text-sm font-medium text-white/50 mb-1.5">
+                  Liens sociaux
+                </label>
+                <div className="space-y-2">
+                  {SOCIAL_LINK_OPTIONS.map((option) => (
+                    <div key={option.key} className="flex items-center gap-2">
+                      <span className="w-20 text-xs text-white/40 font-medium shrink-0">
+                        {option.label}
+                      </span>
+                      <input
+                        type="url"
+                        value={form.social_links[option.key] ?? ''}
+                        onChange={(e) => updateSocialLink(option.key, e.target.value)}
+                        placeholder={option.placeholder}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/15 outline-none focus:border-[#FFBF00]/40 transition-colors"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Save */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-xl text-sm font-medium text-white/60 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !form.full_name.trim()}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FFBF00] to-[#FF9D00] text-[#0C0C0C] font-display font-bold text-sm hover:shadow-[0_0_20px_rgba(255,191,0,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                           Main Profile Client                              */
+/* -------------------------------------------------------------------------- */
+
 export default function ProfileClient({
   profile,
   badges,
+  allBadges,
   xpEvents,
   questsCompleted,
+  formationsCompleted,
   badgesEarned,
+  currentLevelXP,
+  nextLevelXP,
 }: ProfileClientProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(profile.full_name);
-  const [saving, setSaving] = useState(false);
 
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editName.trim()) return;
+  const rankTitle = LEVEL_TITLES[profile.level] ?? `Niveau ${profile.level}`;
+  const businessConfig = profile.business_type
+    ? BUSINESS_TYPE_CONFIG[profile.business_type]
+    : null;
+  const expConfig = profile.experience_level
+    ? EXPERIENCE_LEVELS[profile.experience_level]
+    : null;
+  const xpProgress = getXPProgressPercent(profile.total_xp, currentLevelXP, nextLevelXP);
+  const xpIntoLevel = profile.total_xp - currentLevelXP;
+  const xpNeeded = nextLevelXP - currentLevelXP;
 
-    setSaving(true);
-    try {
-      await fetch('/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: editName.trim() }),
-      });
-      window.location.reload();
-    } catch {
-      // Error handled silently
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Separate earned badge IDs for trophy case
+  const earnedBadgeIds = new Set(badges.map((b) => b.badge_id));
 
   const stats = [
-    { label: 'XP Total', value: formatXP(profile.total_xp), icon: (
-      <svg className="w-5 h-5 text-[#FFBF00]" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-      </svg>
-    ), accent: true },
-    { label: 'Niveau', value: String(profile.level), icon: (
-      <svg className="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-      </svg>
-    ), accent: false },
-    { label: 'Streak actuel', value: `${profile.current_streak}j`, icon: (
-      <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
-      </svg>
-    ), accent: false },
-    { label: 'Record streak', value: `${profile.longest_streak}j`, icon: (
-      <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
-      </svg>
-    ), accent: false },
-    { label: 'Qu\u00eates', value: String(questsCompleted), icon: (
-      <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ), accent: false },
-    { label: 'Badges', value: String(badgesEarned), icon: (
-      <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-      </svg>
-    ), accent: false },
+    { label: 'XP Total', value: formatXP(profile.total_xp), icon: Star, color: 'text-[#FFBF00]', accent: true },
+    { label: 'Niveau', value: String(profile.level), icon: Shield, color: 'text-purple-400', accent: false },
+    { label: 'Streak', value: `${profile.current_streak}j`, icon: Flame, color: 'text-orange-400', accent: false },
+    { label: 'Record', value: `${profile.longest_streak}j`, icon: Flame, color: 'text-red-400', accent: false },
+    { label: 'Qu\u00eates', value: String(questsCompleted), icon: Target, color: 'text-blue-400', accent: false },
+    { label: 'Formations', value: String(formationsCompleted), icon: BookOpen, color: 'text-green-400', accent: false },
+    { label: 'Badges', value: String(badgesEarned), icon: Trophy, color: 'text-amber-400', accent: false },
   ];
+
+  const socialLinks = profile.social_links
+    ? Object.entries(profile.social_links).filter(([, v]) => v)
+    : [];
 
   return (
     <motion.div
@@ -240,18 +568,21 @@ export default function ProfileClient({
       animate="visible"
       className="max-w-5xl mx-auto space-y-6"
     >
-      {/* Profile Hero Card */}
+      {/* ================================================================== */}
+      {/*  HERO BANNER — Character Sheet Header                              */}
+      {/* ================================================================== */}
       <motion.div
         variants={childVariants}
         className="relative rounded-2xl border border-white/5 bg-black/40 backdrop-blur-sm overflow-hidden"
       >
         {/* Background gradient accent */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-[#FFBF00]/10 via-[#FF9D00]/5 to-transparent" />
+        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-br from-[#FFBF00]/10 via-[#FF9D00]/5 to-transparent" />
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#FFBF00]/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/5 rounded-full blur-3xl" />
 
         <div className="relative p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-            {/* Avatar with animated ring */}
+            {/* Avatar with animated gradient ring */}
             <div className="relative group">
               {/* Animated outer ring */}
               <div className="absolute -inset-1.5 rounded-full bg-gradient-to-r from-[#FFBF00] via-[#FF9D00] to-[#FFBF00] opacity-60 blur-sm group-hover:opacity-80 transition-opacity" />
@@ -275,191 +606,281 @@ export default function ProfileClient({
               </div>
 
               {/* Level badge on avatar */}
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-[#FFBF00] to-[#FF9D00] shadow-[0_0_15px_rgba(255,191,0,0.4)]">
+              <motion.div
+                className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-[#FFBF00] to-[#FF9D00]"
+                animate={{
+                  boxShadow: [
+                    '0 0 10px rgba(255,191,0,0.3)',
+                    '0 0 20px rgba(255,191,0,0.5)',
+                    '0 0 10px rgba(255,191,0,0.3)',
+                  ],
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
                 <span className="font-display font-bold text-[#0C0C0C] text-xs">
                   Niv. {profile.level}
                 </span>
-              </div>
+              </motion.div>
             </div>
 
-            <div className="flex-1 text-center md:text-left mt-4 md:mt-2">
+            <div className="flex-1 text-center md:text-left mt-4 md:mt-2 min-w-0">
               {/* Name with gradient */}
-              <h1 className="font-display text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent mb-1">
+              <h1 className="font-display text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent mb-2">
                 {profile.full_name}
               </h1>
 
-              {/* Title badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FFBF00]/10 border border-[#FFBF00]/20 mb-3">
-                <svg className="w-4 h-4 text-[#FFBF00]" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5v-2z" />
-                </svg>
-                <span className="font-display font-semibold text-[#FFBF00] text-sm">
-                  {LEVEL_TITLES[profile.level] ?? `Niveau ${profile.level}`}
-                </span>
+              {/* Rank title badge */}
+              <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start mb-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FFBF00]/10 border border-[#FFBF00]/20">
+                  <Shield className="w-4 h-4 text-[#FFBF00]" />
+                  <span className="font-display font-semibold text-[#FFBF00] text-sm">
+                    {rankTitle}
+                  </span>
+                </div>
+
+                {/* Business type badge */}
+                {businessConfig && (
+                  <div className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-gradient-to-r',
+                    businessConfig.color,
+                  )}>
+                    <span className="text-sm">{businessConfig.icon}</span>
+                    <span className="font-display font-medium text-white/80 text-sm">
+                      {businessConfig.label}
+                    </span>
+                  </div>
+                )}
+
+                {/* Experience level */}
+                {expConfig && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                    <span className="text-xs">{Array.from({ length: expConfig.stars }, () => '\u2B50').join('')}</span>
+                    <span className="font-display font-medium text-white/60 text-sm">
+                      {expConfig.label}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <p className="text-white/30 text-sm mb-1">{profile.email}</p>
-              <p className="text-white/20 text-xs">
-                Membre depuis {formatDate(profile.created_at)}
-              </p>
+              {/* Business name */}
+              {profile.business_name && (
+                <p className="text-white/50 text-sm mb-1 font-medium">
+                  {profile.business_name}
+                </p>
+              )}
+
+              {/* Bio */}
+              {profile.bio && (
+                <p className="text-white/40 text-sm mb-2 max-w-xl">
+                  {profile.bio}
+                </p>
+              )}
+
+              {/* Goals */}
+              {profile.goals && profile.goals.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2 justify-center md:justify-start">
+                  {profile.goals.map((goal, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#FFBF00]/5 border border-[#FFBF00]/10 text-xs text-[#FFBF00]/80 font-medium"
+                    >
+                      {goal}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Social links */}
+              {socialLinks.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3 justify-center md:justify-start">
+                  {socialLinks.map(([key, url]) => (
+                    <a
+                      key={key}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50 hover:text-white/80 hover:border-white/20 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {SOCIAL_LINK_OPTIONS.find((s) => s.key === key)?.label ?? key}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 text-xs text-white/20 justify-center md:justify-start">
+                <span>{profile.email}</span>
+                <span>|</span>
+                <span>Membre depuis {formatDate(profile.created_at)}</span>
+              </div>
 
               <button
-                onClick={() => setIsEditing(!isEditing)}
+                onClick={() => setIsEditing(true)}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-display font-medium text-[#FFBF00] bg-[#FFBF00]/5 border border-[#FFBF00]/20 hover:bg-[#FFBF00]/10 hover:border-[#FFBF00]/30 transition-all"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                </svg>
-                {isEditing ? 'Annuler' : 'Modifier le profil'}
+                <Pencil className="w-4 h-4" />
+                Modifier le profil
               </button>
             </div>
           </div>
 
-          {/* Edit form */}
-          <AnimatePresence>
-            {isEditing && (
-              <motion.form
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                onSubmit={handleSaveProfile}
-                className="mt-6 pt-6 border-t border-white/5"
-              >
-                <div className="flex flex-col md:flex-row gap-4 items-end">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-white/40 mb-1.5">
-                      Nom d&apos;affichage
-                    </label>
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 outline-none focus:border-[#FFBF00]/40 focus:ring-1 focus:ring-[#FFBF00]/20 transition-colors"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={saving || !editName.trim()}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#FFBF00] to-[#FF9D00] text-[#0C0C0C] font-display font-bold text-sm hover:shadow-[0_0_20px_rgba(255,191,0,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Enregistrement...' : 'Enregistrer'}
-                  </button>
-                </div>
-              </motion.form>
-            )}
-          </AnimatePresence>
+          {/* XP Progress Bar */}
+          <div className="mt-6 pt-6 border-t border-white/5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-[#FFBF00]" />
+                <span className="text-sm font-display font-medium text-white/60">
+                  Progression vers niveau {profile.level + 1}
+                </span>
+              </div>
+              <span className="text-sm font-display font-bold text-[#FFBF00]">
+                {Math.round(xpProgress)}%
+              </span>
+            </div>
+            <div className="relative h-3 w-full overflow-hidden rounded-full bg-white/[0.06]">
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#FFBF00] via-[#FF9D00] to-[#FFBF00]"
+                initial={{ width: 0 }}
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.3 }}
+              />
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded-full"
+                style={{
+                  width: `${xpProgress}%`,
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
+                  backgroundSize: '200% 100%',
+                }}
+                animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear', delay: 1.5 }}
+              />
+            </div>
+            <p className="text-xs text-white/20 mt-1">
+              {formatXP(xpIntoLevel)} / {formatXP(xpNeeded)} XP
+            </p>
+          </div>
         </div>
       </motion.div>
 
-      {/* Stats grid */}
+      {/* ================================================================== */}
+      {/*  STATS GRID                                                        */}
+      {/* ================================================================== */}
       <motion.div
         variants={childVariants}
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+        className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"
       >
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 + index * 0.05 }}
-            whileHover={{ y: -2, transition: { duration: 0.2 } }}
-            className={cn(
-              'group relative rounded-2xl border p-4 text-center',
-              'bg-black/40 backdrop-blur-sm border-white/5',
-              'hover:border-white/10 transition-all duration-300',
-              stat.accent && 'border-[#FFBF00]/20 bg-[#FFBF00]/[0.03]'
-            )}
-          >
-            <div className="flex justify-center mb-2">
-              {stat.icon}
-            </div>
-            <p className={cn(
-              'font-display text-2xl font-bold mb-0.5',
-              stat.accent ? 'text-[#FFBF00]' : 'text-white'
-            )}>
-              {stat.value}
-            </p>
-            <p className="text-[11px] text-white/30 font-display">{stat.label}</p>
-          </motion.div>
-        ))}
+        {stats.map((stat, index) => {
+          const IconComp = stat.icon;
+          return (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 + index * 0.05 }}
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
+              className={cn(
+                'group relative rounded-2xl border p-4 text-center',
+                'bg-black/40 backdrop-blur-sm border-white/5',
+                'hover:border-white/10 transition-all duration-300',
+                stat.accent && 'border-[#FFBF00]/20 bg-[#FFBF00]/[0.03]'
+              )}
+            >
+              <div className="flex justify-center mb-2">
+                <IconComp className={cn('w-5 h-5', stat.color)} />
+              </div>
+              <p className={cn(
+                'font-display text-2xl font-bold mb-0.5',
+                stat.accent ? 'text-[#FFBF00]' : 'text-white'
+              )}>
+                {stat.value}
+              </p>
+              <p className="text-[11px] text-white/30 font-display">{stat.label}</p>
+            </motion.div>
+          );
+        })}
       </motion.div>
 
-      {/* Badges - Trophy Case */}
+      {/* ================================================================== */}
+      {/*  BADGE SHOWCASE — Trophy Case                                      */}
+      {/* ================================================================== */}
       <motion.div
         variants={childVariants}
         className="rounded-2xl border border-white/5 bg-black/40 backdrop-blur-sm p-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-9 h-9 rounded-xl bg-[#FFBF00]/10 border border-[#FFBF00]/20 flex items-center justify-center">
-            <svg className="w-5 h-5 text-[#FFBF00]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.003 6.003 0 01-5.54 0" />
-            </svg>
+            <Trophy className="w-5 h-5 text-[#FFBF00]" />
           </div>
           <h2 className="font-display text-lg font-bold text-white">
             Vitrine de badges
           </h2>
           <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+          <span className="text-xs text-white/30 font-display">
+            {badgesEarned} / {allBadges.length}
+          </span>
         </div>
 
-        {badges.length === 0 ? (
+        {allBadges.length === 0 ? (
           <div className="text-center py-10">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
-              <svg className="w-8 h-8 text-white/10" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-              </svg>
+              <Trophy className="w-8 h-8 text-white/10" />
             </div>
             <p className="text-white/30 text-sm font-display">
-              Aucun badge obtenu pour le moment.
+              Aucun badge disponible pour le moment.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {badges.map((ub, index) => {
-              const rarity = BADGE_RARITIES[ub.badge.rarity as keyof typeof BADGE_RARITIES];
-              const glowClass = RARITY_GLOW[ub.badge.rarity] ?? '';
-              const borderClass = RARITY_BORDER[ub.badge.rarity] ?? 'border-white/10';
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {allBadges.map((badge, index) => {
+              const isEarned = earnedBadgeIds.has(badge.id);
+              const rarity = BADGE_RARITIES[badge.rarity as keyof typeof BADGE_RARITIES];
+              const glowClass = isEarned ? (RARITY_GLOW[badge.rarity] ?? '') : '';
+              const borderClass = isEarned
+                ? (RARITY_BORDER[badge.rarity] ?? 'border-white/10')
+                : 'border-white/5';
 
               return (
                 <motion.div
-                  key={ub.id}
+                  key={badge.id}
                   initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  whileHover={{ y: -4, scale: 1.02, transition: { duration: 0.2 } }}
+                  animate={{ opacity: isEarned ? 1 : 0.4, scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.03 }}
+                  whileHover={isEarned ? { y: -4, scale: 1.02, transition: { duration: 0.2 } } : undefined}
                   className={cn(
                     'group rounded-2xl border p-4 text-center transition-all duration-300',
                     'bg-black/40 backdrop-blur-sm',
                     borderClass,
-                    glowClass
+                    glowClass,
+                    !isEarned && 'grayscale'
                   )}
                 >
                   <div
-                    className="w-14 h-14 mx-auto mb-3 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
+                    className="w-12 h-12 mx-auto mb-2 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
                     style={{
-                      backgroundColor: `${rarity?.color ?? '#888'}10`,
-                      border: `1px solid ${rarity?.color ?? '#888'}30`,
+                      backgroundColor: isEarned ? `${rarity?.color ?? '#888'}10` : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isEarned ? `${rarity?.color ?? '#888'}30` : 'rgba(255,255,255,0.05)'}`,
                     }}
                   >
-                    {ub.badge.icon_url ? (
-                      <img src={ub.badge.icon_url} alt={ub.badge.name} className="w-8 h-8" />
+                    {badge.icon_url ? (
+                      <img src={badge.icon_url} alt={badge.name} className="w-7 h-7" />
                     ) : (
-                      <svg
-                        className="w-7 h-7"
-                        style={{ color: rarity?.color ?? '#888' }}
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-                      </svg>
+                      <Star
+                        className="w-6 h-6"
+                        style={{ color: isEarned ? (rarity?.color ?? '#888') : '#333' }}
+                      />
                     )}
                   </div>
-                  <p className="font-display font-bold text-white text-sm truncate mb-0.5">
-                    {ub.badge.name}
+                  <p className="font-display font-bold text-white text-xs truncate mb-0.5">
+                    {badge.name}
                   </p>
-                  <p className="text-[11px] font-display font-semibold mb-1" style={{ color: rarity?.color ?? '#888' }}>
-                    {rarity?.label ?? ub.badge.rarity}
+                  <p className="text-[10px] font-display font-semibold" style={{ color: isEarned ? (rarity?.color ?? '#888') : '#555' }}>
+                    {rarity?.label ?? badge.rarity}
                   </p>
-                  <p className="text-[11px] text-white/20 line-clamp-2">{ub.badge.description}</p>
+                  {!isEarned && (
+                    <p className="text-[10px] text-white/15 mt-1 line-clamp-1">
+                      {badge.description}
+                    </p>
+                  )}
                 </motion.div>
               );
             })}
@@ -467,16 +888,16 @@ export default function ProfileClient({
         )}
       </motion.div>
 
-      {/* XP History - Timeline */}
+      {/* ================================================================== */}
+      {/*  XP HISTORY — Timeline                                             */}
+      {/* ================================================================== */}
       <motion.div
         variants={childVariants}
         className="rounded-2xl border border-white/5 bg-black/40 backdrop-blur-sm p-6"
       >
         <div className="flex items-center gap-3 mb-5">
           <div className="w-9 h-9 rounded-xl bg-purple-400/10 border border-purple-400/20 flex items-center justify-center">
-            <svg className="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <Clock className="w-5 h-5 text-purple-400" />
           </div>
           <h2 className="font-display text-lg font-bold text-white">
             Historique XP
@@ -487,9 +908,7 @@ export default function ProfileClient({
         {xpEvents.length === 0 ? (
           <div className="text-center py-10">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
-              <svg className="w-8 h-8 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock className="w-8 h-8 text-white/10" />
             </div>
             <p className="text-white/30 text-sm font-display">
               Aucun &eacute;v&eacute;nement XP pour le moment.
@@ -497,61 +916,73 @@ export default function ProfileClient({
           </div>
         ) : (
           <div className="space-y-0">
-            {xpEvents.map((event, index) => {
-              const icon = SOURCE_ICONS[event.source] ?? SOURCE_ICONS.manual_log;
-
-              return (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.03 }}
-                  className={cn(
-                    'group flex items-center gap-4 py-3.5 px-3 -mx-3 rounded-xl hover:bg-white/[0.02] transition-colors',
-                    index < xpEvents.length - 1 && 'border-b border-white/5'
+            {xpEvents.map((event, index) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.03 }}
+                className={cn(
+                  'group flex items-center gap-4 py-3.5 px-3 -mx-3 rounded-xl hover:bg-white/[0.02] transition-colors',
+                  index < xpEvents.length - 1 && 'border-b border-white/5'
+                )}
+              >
+                <div className="relative flex-shrink-0">
+                  <div className={cn(
+                    'w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300',
+                    event.amount > 0
+                      ? 'bg-[#FFBF00]/10 text-[#FFBF00] border border-[#FFBF00]/20'
+                      : 'bg-red-400/10 text-red-400 border border-red-400/20'
+                  )}>
+                    <Star className="w-4 h-4" />
+                  </div>
+                  {index < xpEvents.length - 1 && (
+                    <div className="absolute top-[38px] left-1/2 -translate-x-1/2 w-px h-4 bg-white/5" />
                   )}
-                >
-                  {/* Icon with timeline connector */}
-                  <div className="relative flex-shrink-0">
-                    <div className={cn(
-                      'w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300',
-                      event.amount > 0 ? 'bg-[#FFBF00]/10 text-[#FFBF00] border border-[#FFBF00]/20' : 'bg-red-400/10 text-red-400 border border-red-400/20'
-                    )}>
-                      {icon}
-                    </div>
-                    {index < xpEvents.length - 1 && (
-                      <div className="absolute top-[38px] left-1/2 -translate-x-1/2 w-px h-4 bg-white/5" />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-white font-medium truncate">
+                      {event.description ?? SOURCE_LABELS[event.source] ?? event.source}
+                    </span>
+                    {event.verification_status === 'pending_review' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-display font-semibold bg-yellow-400/10 text-yellow-400 border border-yellow-400/20">
+                        En attente
+                      </span>
                     )}
                   </div>
+                  <p className="text-xs text-white/20 mt-0.5">
+                    {formatRelativeDate(event.created_at)}
+                  </p>
+                </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium truncate">
-                        {event.description ?? SOURCE_LABELS[event.source] ?? event.source}
-                      </span>
-                      {event.verification_status === 'pending_review' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-display font-semibold bg-yellow-400/10 text-yellow-400 border border-yellow-400/20">
-                          En attente
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-white/20 mt-0.5">
-                      {formatRelativeDate(event.created_at)}
-                    </p>
-                  </div>
+                <span className={cn(
+                  'font-display font-bold text-sm flex-shrink-0 tabular-nums',
+                  event.amount > 0 ? 'text-[#FFBF00]' : 'text-red-400'
+                )}>
+                  {event.amount > 0 ? '+' : ''}{formatXP(event.amount)} XP
+                </span>
+              </motion.div>
+            ))}
 
-                  <span className={cn(
-                    'font-display font-bold text-sm flex-shrink-0 tabular-nums',
-                    event.amount > 0 ? 'text-[#FFBF00]' : 'text-red-400'
-                  )}>
-                    {event.amount > 0 ? '+' : ''}{formatXP(event.amount)} XP
-                  </span>
-                </motion.div>
-              );
-            })}
+            {/* Link to see more */}
+            <div className="pt-3 text-center">
+              <span className="inline-flex items-center gap-1 text-xs text-white/20 font-display">
+                Derni&egrave;res 10 actions
+                <ChevronRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         )}
       </motion.div>
+
+      {/* Edit Modal */}
+      <EditProfileModal
+        profile={profile}
+        isOpen={isEditing}
+        onClose={() => setIsEditing(false)}
+      />
     </motion.div>
   );
 }

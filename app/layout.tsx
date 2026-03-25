@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Rajdhani } from 'next/font/google';
+import { Inter, Rajdhani, Press_Start_2P } from 'next/font/google';
 import './globals.css';
 
 const inter = Inter({
@@ -12,6 +12,13 @@ const rajdhani = Rajdhani({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-display',
+  display: 'swap',
+});
+
+const pressStart2P = Press_Start_2P({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-pixel',
   display: 'swap',
 });
 
@@ -30,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className="dark">
-      <body className={`${inter.variable} ${rajdhani.variable} font-body`}>
+      <body className={`${inter.variable} ${rajdhani.variable} ${pressStart2P.variable} font-body`}>
         {children}
       </body>
     </html>

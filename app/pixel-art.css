@@ -1,0 +1,203 @@
+/* ============================================================
+   PIXEL ART DESIGN SYSTEM
+   Retro RPG meets modern web — Pokémon overworld for business
+   ============================================================ */
+
+/* Pixel art rendering — crisp upscaling, no anti-aliasing */
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Pixel font feel */
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================================
+   PIXEL ART KEYFRAMES
+   ============================================================ */
+
+/* Idle bounce — like Pokémon overworld sprites */
+@keyframes pixel-idle-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.animate-pixel-bounce {
+  animation: pixel-idle-bounce 2s ease-in-out infinite;
+}
+
+/* Walking animation — 2-frame alternation */
+@keyframes pixel-walk {
+  0%, 49.9% {
+    transform: translateY(0) scaleX(1);
+  }
+  50%, 100% {
+    transform: translateY(-1px) scaleX(-1);
+  }
+}
+
+.animate-pixel-walk {
+  animation: pixel-walk 0.4s steps(2) infinite;
+}
+
+/* Coin rotation */
+@keyframes pixel-coin-rotate {
+  0% {
+    transform: scaleX(1);
+  }
+  25% {
+    transform: scaleX(0.2);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+  75% {
+    transform: scaleX(0.2);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+.animate-pixel-coin {
+  animation: pixel-coin-rotate 1.5s ease-in-out infinite;
+}
+
+/* Star sparkle */
+@keyframes pixel-sparkle {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  25% {
+    opacity: 0.6;
+    filter: brightness(1.5);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(2);
+  }
+  75% {
+    opacity: 0.8;
+    filter: brightness(1.2);
+  }
+}
+
+.animate-pixel-sparkle {
+  animation: pixel-sparkle 1.2s ease-in-out infinite;
+}
+
+/* Heart pulse */
+@keyframes pixel-heart-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.15);
+  }
+  30% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.1);
+  }
+  60% {
+    transform: scale(1);
+  }
+}
+
+.animate-pixel-heart {
+  animation: pixel-heart-pulse 1.8s ease-in-out infinite;
+}
+
+/* Golden aura glow */
+@keyframes pixel-golden-aura {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.3), 0 0 8px rgba(255, 191, 0, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 0 16px rgba(255, 191, 0, 0.3);
+  }
+}
+
+.animate-pixel-aura {
+  animation: pixel-golden-aura 2s ease-in-out infinite;
+}
+
+/* Typewriter cursor blink */
+@keyframes pixel-cursor-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.animate-pixel-cursor {
+  animation: pixel-cursor-blink 0.8s steps(1) infinite;
+}
+
+/* Pixel bar fill — stepped segment fill */
+@keyframes pixel-bar-fill {
+  from {
+    width: 0;
+  }
+}
+
+/* Flag wave for map buildings */
+@keyframes pixel-flag-wave {
+  0%, 100% {
+    transform: skewX(0deg);
+  }
+  25% {
+    transform: skewX(3deg);
+  }
+  75% {
+    transform: skewX(-3deg);
+  }
+}
+
+.animate-pixel-flag {
+  animation: pixel-flag-wave 2s ease-in-out infinite;
+}
+
+/* Smoke from chimneys */
+@keyframes pixel-smoke {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-8px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-pixel-smoke {
+  animation: pixel-smoke 2s ease-out infinite;
+}
+
+/* RPG dialog box pixelated border */
+.pixel-dialog-border {
+  border: 4px solid #ffffff;
+  outline: 4px solid #000000;
+  box-shadow:
+    inset 0 0 0 2px #000000,
+    inset 0 0 0 4px #333366;
+}
+
+/* Pixel bar stepped border */
+.pixel-bar-border {
+  border: 2px solid #ffffff;
+  outline: 2px solid #000000;
+  box-shadow: inset 0 0 0 1px #000000;
+}

@@ -13,22 +13,24 @@ export default async function QuestsPage() {
 
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single();
-
-  const orgId = profile?.organization_id ?? null;
-
   const now = new Date().toISOString();
 
-  const { data: quests, error: questsError } = await supabase
-    .from('quests')
-    .select('id, title, description, quest_type, xp_reward, required_count, source_filter, is_active, starts_at, expires_at')
-    .eq('is_active', true)
-    .or(`starts_at.is.null,starts_at.lte.${now}`)
-    .or(`expires_at.is.null,expires_at.gte.${now}`);
+  /* Fetch quests and user progress in parallel for faster loading */
+  const [questsResult, userQuestsResult] = await Promise.all([
+    supabase
+      .from('quests')
+      .select('id, title, description, quest_type, xp_reward, required_count, source_filter, is_active, starts_at, expires_at')
+      .eq('is_active', true)
+      .or(`starts_at.is.null,starts_at.lte.${now}`)
+      .or(`expires_at.is.null,expires_at.gte.${now}`),
+    supabase
+      .from('user_quests')
+      .select('id, quest_id, progress, status, completed_at, claimed_at')
+      .eq('user_id', user.id),
+  ]);
+
+  const { data: quests, error: questsError } = questsResult;
+  const { data: userQuests, error: userQuestsError } = userQuestsResult;
 
   if (questsError) {
     return (
@@ -37,11 +39,6 @@ export default async function QuestsPage() {
       </div>
     );
   }
-
-  const { data: userQuests, error: userQuestsError } = await supabase
-    .from('user_quests')
-    .select('id, quest_id, progress, status, completed_at, claimed_at')
-    .eq('user_id', user.id);
 
   if (userQuestsError) {
     return (

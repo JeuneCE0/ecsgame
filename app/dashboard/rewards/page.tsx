@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import RewardsClient from './rewards-client';
+import ShopClient from './rewards-client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RewardsPage() {
+export default async function ShopPage() {
   const supabase = createClient();
 
   const {
@@ -13,11 +13,21 @@ export default async function RewardsPage() {
 
   if (!user) redirect('/login');
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('total_xp')
-    .eq('id', user.id)
-    .single();
+  const [profileResult, claimedResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('total_xp, level')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('reward_claims')
+      .select('id, reward_id, claimed_at, status')
+      .eq('user_id', user.id)
+      .order('claimed_at', { ascending: false }),
+  ]);
+
+  const { data: profile, error: profileError } = profileResult;
+  const { data: claimedRewards } = claimedResult;
 
   if (profileError) {
     return (
@@ -27,54 +37,21 @@ export default async function RewardsPage() {
     );
   }
 
-  const { data: rewards, error: rewardsError } = await supabase
-    .from('rewards')
-    .select('id, name, description, image_url, cost_xp, is_active, stock')
-    .eq('is_active', true)
-    .order('cost_xp', { ascending: true });
-
-  if (rewardsError) {
-    return (
-      <div className="card-ecs text-center py-12">
-        <p className="text-red-400 text-sm">Erreur lors du chargement des r&eacute;compenses.</p>
-      </div>
-    );
-  }
-
-  const { data: claimedRewards, error: claimedError } = await supabase
-    .from('reward_claims')
-    .select('id, reward_id, claimed_at, status, reward:rewards (id, name, description, image_url, cost_xp)')
-    .eq('user_id', user.id)
-    .order('claimed_at', { ascending: false });
-
-  type RewardRow = {
-    id: string;
-    name: string;
-    description: string;
-    image_url: string | null;
-    cost_xp: number;
-    is_active: boolean;
-    stock: number | null;
-  };
-
-  type ClaimedRewardRow = {
+  type ProfileRow = { total_xp: number; level: number };
+  type ClaimedRow = {
     id: string;
     reward_id: string;
     claimed_at: string;
-    reward: {
-      id: string;
-      name: string;
-      description: string;
-      image_url: string | null;
-      cost_xp: number;
-    };
+    status: string;
   };
 
+  const p = profile as ProfileRow;
+
   return (
-    <RewardsClient
-      rewards={(rewards ?? []) as RewardRow[]}
-      claimedRewards={((claimedRewards ?? []) as unknown as ClaimedRewardRow[])}
-      currentXP={Number((profile as { total_xp: number }).total_xp)}
+    <ShopClient
+      currentXP={Number(p.total_xp)}
+      currentLevel={Number(p.level)}
+      purchasedItemIds={(claimedRewards ?? []).map((c: ClaimedRow) => c.reward_id)}
     />
   );
 }

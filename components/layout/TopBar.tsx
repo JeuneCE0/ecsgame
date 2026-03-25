@@ -1,12 +1,13 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Flame, Menu, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Flame, Menu, MessageSquare, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatXP } from '@/lib/utils';
 import { LEVEL_TITLES } from '@/lib/constants';
 import { usePlayerStore } from '@/stores/usePlayerStore';
 import { useGameStore } from '@/stores/useGameStore';
+import { useChatStore } from '@/stores/useChatStore';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '@/lib/constants';
 import { NotificationBell } from '@/components/game/NotificationCenter';
@@ -26,6 +27,7 @@ export default function TopBar() {
   const { level, totalXP, currentStreak } = usePlayerStore();
   const { toggleSidebar } = useGameStore();
   const { toggleMute, isMuted } = useGameSounds();
+  const { togglePanel: toggleChat, unreadCount: chatUnread } = useChatStore();
   const pageTitle = getPageTitle(pathname);
 
   return (
@@ -160,6 +162,34 @@ export default function TopBar() {
               <VolumeX className="h-[18px] w-[18px]" />
             ) : (
               <Volume2 className="h-[18px] w-[18px]" />
+            )}
+          </motion.button>
+
+          {/* Chat toggle */}
+          <motion.button
+            type="button"
+            onClick={toggleChat}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            className={cn(
+              'relative flex h-9 w-9 items-center justify-center rounded-xl',
+              'bg-white/[0.03] hover:bg-white/[0.06]',
+              'border border-white/[0.04] hover:border-white/[0.06]',
+              'text-ecs-gray hover:text-white',
+              'transition-colors duration-200'
+            )}
+            aria-label="Messages"
+          >
+            <MessageSquare className="h-[18px] w-[18px]" />
+            {chatUnread > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ecs-amber px-1 text-[9px] font-bold text-black"
+              >
+                {chatUnread > 99 ? '99+' : chatUnread}
+              </motion.span>
             )}
           </motion.button>
 

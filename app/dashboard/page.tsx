@@ -66,13 +66,20 @@ export default async function DashboardPage() {
         | 'expired',
     }));
 
-  const { data: closesData } = await supabase
-    .from('xp_events')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('source', 'deal_closed');
+  const [closesResult, xpCountResult] = await Promise.all([
+    supabase
+      .from('xp_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('source', 'deal_closed'),
+    supabase
+      .from('xp_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+  ]);
 
-  const totalCloses = closesData?.length ?? 0;
+  const totalCloses = closesResult.count ?? 0;
+  const xpEventCount = xpCountResult.count ?? 0;
 
   const recentActivity = recentXP.map((event) => ({
     id: event.id,
@@ -93,6 +100,7 @@ export default async function DashboardPage() {
       todayQuests={todayQuests}
       totalCloses={totalCloses}
       recentActivity={recentActivity}
+      xpEventCount={xpEventCount}
     />
   );
 }

@@ -27,6 +27,7 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-display)', 'Rajdhani', 'sans-serif'],
         body: ['var(--font-body)', 'Inter', 'sans-serif'],
+        pixel: ['var(--font-pixel)', '"Press Start 2P"', 'monospace'],
       },
       borderRadius: {
         lg: '16px',

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { PlayerStats } from '@/lib/game/stats-engine';
 
 interface PlayerState {
   level: number;
@@ -7,12 +8,14 @@ interface PlayerState {
   showLevelUpModal: boolean;
   newLevel: number | null;
   xpNotification: { amount: number; source: string } | null;
+  stats: PlayerStats;
 
   setPlayer: (data: { level: number; totalXP: number; currentStreak: number }) => void;
   addXP: (amount: number, source: string) => void;
   triggerLevelUp: (newLevel: number) => void;
   dismissLevelUp: () => void;
   clearXPNotification: () => void;
+  setStats: (stats: PlayerStats) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set) => ({
@@ -22,6 +25,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   showLevelUpModal: false,
   newLevel: null,
   xpNotification: null,
+  stats: { closing: 0, prospection: 0, management: 0, creation: 0, networking: 0 },
 
   setPlayer: (data) =>
     set({ level: data.level, totalXP: data.totalXP, currentStreak: data.currentStreak }),
@@ -40,4 +44,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
 
   clearXPNotification: () =>
     set({ xpNotification: null }),
+
+  setStats: (stats) =>
+    set({ stats }),
 }));
