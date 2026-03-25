@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import RewardsClient from './rewards-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function RewardsPage() {
   const supabase = createClient();
 

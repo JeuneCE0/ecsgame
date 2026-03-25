@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import FormationsClient from './formations-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function FormationsPage() {
   const supabase = createClient();
 

@@ -6,6 +6,8 @@ import { getStreakInfo } from '@/lib/game/streak-engine';
 import { SCALE_CORP_ORG_ID } from '@/lib/constants';
 import { DashboardClient } from './DashboardClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const supabase = createClient();
 

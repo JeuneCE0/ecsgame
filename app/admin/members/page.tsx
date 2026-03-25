@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import AdminMembersClient from './admin-members-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminMembersPage() {
   const supabase = createClient();
 

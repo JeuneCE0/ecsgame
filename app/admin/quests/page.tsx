@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import AdminQuestsClient from './admin-quests-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminQuestsPage() {
   const supabase = createClient();
 

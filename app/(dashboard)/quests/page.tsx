@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import QuestsClient from './quests-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function QuestsPage() {
   const supabase = createClient();
 

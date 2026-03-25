@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 const ADMIN_NAV = [
   { href: '/admin', label: 'Dashboard', icon: 'grid' },
   { href: '/admin/quests', label: 'Qu\u00eates', icon: 'sword' },
