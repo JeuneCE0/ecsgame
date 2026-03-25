@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Teachers:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --ecs-black: #0C0C0C;
+    --ecs-black-light: #141414;
+    --ecs-black-card: #1A1A1A;
+    --ecs-amber: #FFBF00;
+    --ecs-orange: #FF9D00;
+    --ecs-gray: #888888;
+    --ecs-gray-dark: #333333;
+    --ecs-gray-border: #2A2A2A;
+  }
+
+  * {
+    border-color: var(--ecs-gray-border);
+  }
+
+  body {
+    @apply bg-ecs-black text-white font-body antialiased;
+  }
+
+  /* Grain texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+}
+
+@layer components {
+  .card-ecs {
+    @apply bg-ecs-black-card border border-ecs-gray-border rounded-lg p-6;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-amber text-ecs-black font-display font-bold uppercase tracking-wider
+           px-6 py-3 rounded-lg transition-all duration-200
+           hover:shadow-amber-glow hover:scale-[1.02] active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply border border-ecs-amber/20 text-ecs-amber font-display uppercase tracking-wider
+           px-6 py-3 rounded-lg transition-all duration-200
+           hover:bg-ecs-amber/5 hover:border-ecs-amber/40;
+  }
+
+  .badge-level {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-display
+           bg-ecs-amber/[0.08] border border-ecs-amber/15 text-ecs-amber;
+  }
+
+  .xp-bar {
+    @apply h-2.5 rounded-full bg-ecs-gray-dark overflow-hidden;
+  }
+
+  .xp-bar-fill {
+    @apply h-full rounded-full bg-gradient-amber transition-all duration-700 ease-out;
+  }
+
+  .glow-amber {
+    @apply shadow-amber-glow;
+  }
+}
+
+@layer utilities {
+  .text-gradient-amber {
+    @apply bg-gradient-amber bg-clip-text text-transparent;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ecs-black-light);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ecs-gray-dark);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ecs-gray);
+}
