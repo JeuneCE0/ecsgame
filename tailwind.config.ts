@@ -25,8 +25,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['Eurostile', 'Teachers', 'sans-serif'],
-        body: ['Teachers', 'sans-serif'],
+        display: ['var(--font-display)', 'Rajdhani', 'sans-serif'],
+        body: ['var(--font-body)', 'Inter', 'sans-serif'],
       },
       borderRadius: {
         lg: '16px',
