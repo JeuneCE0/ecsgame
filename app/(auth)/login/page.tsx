@@ -12,10 +12,37 @@ export default function LoginPage() {
   const supabase = createClient();
 
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [mode, setMode] = useState<'password' | 'magic'>('password');
+
+  async function handlePasswordLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!email.trim() || !password.trim()) {
+      setError('Veuillez remplir tous les champs.');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    router.push('/dashboard');
+  }
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +69,7 @@ export default function LoginPage() {
       return;
     }
 
-    setSuccess(true);
+    router.push('/dashboard');
   }
 
   async function handleGoogleLogin() {
@@ -60,58 +87,6 @@ export default function LoginPage() {
       setGoogleLoading(false);
       setError(authError.message);
     }
-  }
-
-  if (success) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="card-ecs text-center"
-      >
-        <div className="flex justify-center mb-6">
-          <Image
-            src="/logo.png"
-            alt="ECS GAME"
-            width={160}
-            height={48}
-            priority
-          />
-        </div>
-        <div className="mb-4">
-          <div className="mx-auto w-14 h-14 rounded-full bg-ecs-amber/10 border border-ecs-amber/20 flex items-center justify-center mb-4">
-            <svg
-              className="w-7 h-7 text-ecs-amber"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-          </div>
-          <h2 className="font-display text-xl font-bold text-white mb-2">
-            Lien envoy&eacute; !
-          </h2>
-          <p className="text-ecs-gray text-sm">
-            Un lien magique a &eacute;t&eacute; envoy&eacute; &agrave;{' '}
-            <span className="text-ecs-amber">{email}</span>. V&eacute;rifiez
-            votre bo&icirc;te de r&eacute;ception pour vous connecter.
-          </p>
-        </div>
-        <button
-          onClick={() => setSuccess(false)}
-          className="text-ecs-gray hover:text-white text-sm transition-colors"
-        >
-          Utiliser une autre adresse
-        </button>
-      </motion.div>
-    );
   }
 
   return (
@@ -148,7 +123,7 @@ export default function LoginPage() {
           </motion.div>
         )}
 
-        <form onSubmit={handleMagicLink} className="space-y-4 mb-6">
+        <form onSubmit={mode === 'password' ? handlePasswordLogin : handleMagicLink} className="space-y-4 mb-6">
           <div>
             <label
               htmlFor="email"
@@ -170,6 +145,29 @@ export default function LoginPage() {
                          transition-colors disabled:opacity-50"
             />
           </div>
+          {mode === 'password' && (
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-ecs-gray mb-1.5"
+              >
+                Mot de passe
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg bg-ecs-black-light border border-ecs-gray-border
+                           text-white placeholder:text-ecs-gray/50 outline-none
+                           focus:border-ecs-amber/40 focus:ring-1 focus:ring-ecs-amber/20
+                           transition-colors disabled:opacity-50"
+              />
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}
@@ -196,11 +194,20 @@ export default function LoginPage() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                   />
                 </svg>
-                Envoi en cours...
+                Connexion...
               </>
+            ) : mode === 'password' ? (
+              'Se connecter'
             ) : (
               'Envoyer le lien magique'
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode(mode === 'password' ? 'magic' : 'password')}
+            className="w-full text-center text-ecs-gray hover:text-ecs-amber text-sm transition-colors"
+          >
+            {mode === 'password' ? 'Utiliser un lien magique' : 'Utiliser un mot de passe'}
           </button>
         </form>
 
