@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePlayerStore } from '@/stores/usePlayerStore';
-import { PixelAvatar } from '@/components/game/PixelAvatar';
-import { PixelBar } from '@/components/game/PixelBar';
-import { PixelDialog } from '@/components/game/PixelDialog';
-import { FarmingEncounter } from '@/components/game/FarmingEncounter';
-import { LeadNotebook } from '@/components/game/LeadNotebook';
+
+const PixelAvatar = dynamic(() => import('@/components/game/PixelAvatar').then(m => ({ default: m.PixelAvatar })), { ssr: false });
+const PixelBar = dynamic(() => import('@/components/game/PixelBar').then(m => ({ default: m.PixelBar })), { ssr: false });
+const PixelDialog = dynamic(() => import('@/components/game/PixelDialog').then(m => ({ default: m.PixelDialog })), { ssr: false });
+const FarmingEncounter = dynamic(() => import('@/components/game/FarmingEncounter').then(m => ({ default: m.FarmingEncounter })), { ssr: false });
+const LeadNotebook = dynamic(() => import('@/components/game/LeadNotebook').then(m => ({ default: m.LeadNotebook })), { ssr: false });
 
 /* ================================================================== */
 /*  TILE SYSTEM — Gather Town pixel art tiles (32x32 CSS)             */
@@ -1194,6 +1196,9 @@ interface WorldClientProps {
 /* ================================================================== */
 
 export default function WorldClient({ userId, level, totalXP, businessType, fullName }: WorldClientProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const setPlayer = usePlayerStore((s) => s.setPlayer);
   const storeLevel = usePlayerStore((s) => s.level);
   const stats = usePlayerStore((s) => s.stats);
@@ -1563,6 +1568,15 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-ecs-black">
+      {/* ---- Loading screen ---- */}
+      {!mounted && (
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-ecs-black">
+          <div className="font-pixel text-ecs-amber text-sm mb-4 animate-pulse">Chargement du monde...</div>
+          <div className="w-48 h-2 bg-ecs-gray-dark rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-ecs-amber to-ecs-orange rounded-full animate-[shimmer-sweep_1.5s_ease-in-out_infinite]" style={{ width: '60%' }} />
+          </div>
+        </div>
+      )}
       {/* ---- HUD TOP (fixed overlay) ---- */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/60 border-b border-white/10 backdrop-blur-sm z-30">
         <div className="flex items-center gap-3">
