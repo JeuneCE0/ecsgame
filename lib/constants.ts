@@ -197,6 +197,7 @@ export type ShopItem = ShopFormationItem | ShopBoostItem | ShopCosmeticItem | Sh
 
 export const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { href: '/dashboard/world', label: 'Monde', icon: 'Map' },
   { href: '/dashboard/quests', label: 'Quêtes', icon: 'Sword' },
   { href: '/dashboard/leaderboard', label: 'Classement', icon: 'Trophy' },
   { href: '/dashboard/formations', label: 'Formations', icon: 'GraduationCap' },
