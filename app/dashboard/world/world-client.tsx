@@ -1562,10 +1562,16 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
   /* ================================================================ */
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col bg-ecs-black">
       {/* ---- HUD TOP (fixed overlay) ---- */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/60 border-b border-white/10 backdrop-blur-sm z-30">
         <div className="flex items-center gap-3">
+          <a
+            href="/dashboard"
+            className="font-pixel text-[8px] text-white/60 border border-white/20 px-2 py-1 hover:bg-white/10 transition-colors rounded-sm"
+          >
+            {'<'} Retour
+          </a>
           <span className="font-pixel text-[10px] text-ecs-amber">
             {currentZone?.name ?? 'Scale Corp City'}
           </span>
