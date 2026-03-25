@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePlayerStore } from '@/stores/usePlayerStore';
@@ -657,6 +657,19 @@ function getEnergy(prospectionStat: number): number {
 }
 
 /* ================================================================== */
+/*  Animated tile set — only these tile types need animTick           */
+/* ================================================================== */
+
+const ANIMATED_TILES = new Set<TileId>([
+  TILE_WATER as TileId,
+  TILE_FARMING as TileId,
+  TILE_STREETLIGHT as TileId,
+  TILE_TREE as TileId,
+  TILE_FOUNTAIN as TileId,
+  TILE_COMPUTER as TileId,
+]);
+
+/* ================================================================== */
 /*  CSS-only tile renderer                                            */
 /* ================================================================== */
 
@@ -669,7 +682,7 @@ interface TileRendererProps {
   animTick: number;
 }
 
-function TileRenderer({ tileId, row, col, isNPCTile, npcName, animTick }: TileRendererProps) {
+const TileRenderer = React.memo(function TileRenderer({ tileId, row, col, isNPCTile, npcName, animTick }: TileRendererProps) {
   const config = TILE_CONFIG[tileId];
   const isGrass = tileId === TILE_GRASS;
   const isFlowers = tileId === TILE_FLOWERS;
@@ -1077,7 +1090,17 @@ function TileRenderer({ tileId, row, col, isNPCTile, npcName, animTick }: TileRe
       )}
     </div>
   );
-}
+}, (prev, next) => {
+  // Skip re-render if nothing relevant changed
+  if (prev.tileId !== next.tileId) return false;
+  if (prev.row !== next.row) return false;
+  if (prev.col !== next.col) return false;
+  if (prev.isNPCTile !== next.isNPCTile) return false;
+  if (prev.npcName !== next.npcName) return false;
+  // Only re-render for animTick changes if this tile is animated
+  if (ANIMATED_TILES.has(prev.tileId) && prev.animTick !== next.animTick) return false;
+  return true;
+});
 
 /* ================================================================== */
 /*  Virtual Joystick (mobile)                                         */
@@ -1280,15 +1303,23 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
+      // Guard against zero dimensions before layout completes
+      if (w === 0 || h === 0) return;
       setViewportSize({
         cols: Math.max(10, Math.min(MAP_COLS, Math.floor(w / TILE_SIZE))),
         rows: Math.max(8, Math.min(MAP_ROWS, Math.floor(h / TILE_SIZE))),
       });
     }
-    measure();
+    // Delay initial measurement to ensure layout is computed
+    const raf = requestAnimationFrame(() => {
+      measure();
+    });
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', measure);
+    };
+  }, [mounted]);
 
   const VIEWPORT_COLS = viewportSize.cols;
   const VIEWPORT_ROWS = viewportSize.rows;
@@ -1511,20 +1542,21 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
   /* ---- Visible tiles ---- */
 
   const visibleTiles = useMemo(() => {
+    const buffer = 2;
     const tiles: { row: number; col: number; tileId: TileId; npc?: NPCDef }[] = [];
-    for (let vr = 0; vr < VIEWPORT_ROWS; vr++) {
-      for (let vc = 0; vc < VIEWPORT_COLS; vc++) {
-        const mapRow = cameraOffsetRow + vr;
-        const mapCol = cameraOffsetCol + vc;
-        if (mapRow < MAP_ROWS && mapCol < MAP_COLS) {
-          const key = `${mapRow}-${mapCol}`;
-          tiles.push({
-            row: mapRow,
-            col: mapCol,
-            tileId: grid[mapRow][mapCol],
-            npc: npcMap.get(key),
-          });
-        }
+    const startRow = Math.max(0, cameraOffsetRow - buffer);
+    const endRow = Math.min(MAP_ROWS, cameraOffsetRow + VIEWPORT_ROWS + buffer);
+    const startCol = Math.max(0, cameraOffsetCol - buffer);
+    const endCol = Math.min(MAP_COLS, cameraOffsetCol + VIEWPORT_COLS + buffer);
+    for (let mapRow = startRow; mapRow < endRow; mapRow++) {
+      for (let mapCol = startCol; mapCol < endCol; mapCol++) {
+        const key = `${mapRow}-${mapCol}`;
+        tiles.push({
+          row: mapRow,
+          col: mapCol,
+          tileId: grid[mapRow][mapCol],
+          npc: npcMap.get(key),
+        });
       }
     }
     return tiles;
@@ -1566,17 +1598,21 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
   /*  RENDER                                                          */
   /* ================================================================ */
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-ecs-black">
-      {/* ---- Loading screen ---- */}
-      {!mounted && (
+  if (!mounted) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-ecs-black">
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-ecs-black">
           <div className="font-pixel text-ecs-amber text-sm mb-4 animate-pulse">Chargement du monde...</div>
           <div className="w-48 h-2 bg-ecs-gray-dark rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-ecs-amber to-ecs-orange rounded-full animate-[shimmer-sweep_1.5s_ease-in-out_infinite]" style={{ width: '60%' }} />
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-ecs-black">
       {/* ---- HUD TOP (fixed overlay) ---- */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/60 border-b border-white/10 backdrop-blur-sm z-30">
         <div className="flex items-center gap-3">
@@ -1620,7 +1656,7 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
       <div
         ref={containerRef}
         className="relative flex-1 overflow-hidden bg-[#5AA03C]"
-        style={{ imageRendering: 'pixelated' }}
+        style={{ imageRendering: 'pixelated', minHeight: 256 }}
         tabIndex={0}
         role="application"
         aria-label="Carte de Scale Corp City"
@@ -1635,53 +1671,30 @@ export default function WorldClient({ userId, level, totalXP, businessType, full
             transition: 'transform 200ms ease-out',
           }}
         >
-          {/* Tile grid */}
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `repeat(${MAP_COLS}, ${TILE_SIZE}px)`,
-              gridTemplateRows: `repeat(${MAP_ROWS}, ${TILE_SIZE}px)`,
-            }}
-          >
-            {/* Only render visible tiles + buffer */}
-            {Array.from({ length: MAP_ROWS * MAP_COLS }).map((_, idx) => {
-              const row = Math.floor(idx / MAP_COLS);
-              const col = idx % MAP_COLS;
-
-              // Frustum culling: only render tiles near the viewport
-              const buffer = 3;
-              if (
-                row < cameraOffsetRow - buffer ||
-                row >= cameraOffsetRow + VIEWPORT_ROWS + buffer ||
-                col < cameraOffsetCol - buffer ||
-                col >= cameraOffsetCol + VIEWPORT_COLS + buffer
-              ) {
-                return (
-                  <div
-                    key={`${row}-${col}`}
-                    style={{ width: TILE_SIZE, height: TILE_SIZE, backgroundColor: '#5AA03C' }}
-                  />
-                );
-              }
-
-              const tileId = grid[row][col];
-              const key = `${row}-${col}`;
-              const npc = npcMap.get(key);
-
+          {/* Tile grid — only visible tiles are rendered via absolute positioning */}
+          <div className="relative" style={{ width: MAP_COLS * TILE_SIZE, height: MAP_ROWS * TILE_SIZE }}>
+            {visibleTiles.map((tile) => {
+              const npc = tile.npc;
               return (
                 <button
-                  key={key}
+                  key={`${tile.row}-${tile.col}`}
                   type="button"
-                  className="p-0 border-0 cursor-pointer"
-                  onClick={() => handleTileClick(row, col)}
-                  aria-label={`Tuile ${row},${col}`}
+                  className="absolute p-0 border-0 cursor-pointer"
+                  style={{
+                    left: tile.col * TILE_SIZE,
+                    top: tile.row * TILE_SIZE,
+                    width: TILE_SIZE,
+                    height: TILE_SIZE,
+                  }}
+                  onClick={() => handleTileClick(tile.row, tile.col)}
+                  aria-label={`Tuile ${tile.row},${tile.col}`}
                   tabIndex={-1}
                 >
                   <TileRenderer
-                    tileId={tileId}
-                    row={row}
-                    col={col}
-                    isNPCTile={tileId === TILE_NPC}
+                    tileId={tile.tileId}
+                    row={tile.row}
+                    col={tile.col}
+                    isNPCTile={tile.tileId === TILE_NPC}
                     npcName={npc?.name}
                     animTick={animTick}
                   />
