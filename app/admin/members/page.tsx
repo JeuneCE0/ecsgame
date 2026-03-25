@@ -15,7 +15,7 @@ export default async function AdminMembersPage() {
 
   const { data: members, error: membersError } = await supabase
     .from('profiles')
-    .select('id, display_name, email, avatar_url, level, total_xp, current_streak, longest_streak, role, created_at, last_active_date')
+    .select('id, full_name, email, avatar_url, level, total_xp, current_streak, longest_streak, role, created_at, last_active_date')
     .order('total_xp', { ascending: false });
 
   if (membersError) {
@@ -28,7 +28,7 @@ export default async function AdminMembersPage() {
 
   type MemberRow = {
     id: string;
-    display_name: string;
+    full_name: string;
     email: string;
     avatar_url: string | null;
     level: number;

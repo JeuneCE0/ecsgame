@@ -42,8 +42,8 @@ export default async function RewardsPage() {
   }
 
   const { data: claimedRewards, error: claimedError } = await supabase
-    .from('user_rewards')
-    .select('id, reward_id, claimed_at, reward:rewards (id, name, description, image_url, cost_xp)')
+    .from('reward_claims')
+    .select('id, reward_id, claimed_at, status, reward:rewards (id, name, description, image_url, cost_xp)')
     .eq('user_id', user.id)
     .order('claimed_at', { ascending: false });
 

@@ -19,11 +19,15 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('level, total_xp, current_streak, display_name, avatar_url')
+    .select('level, total_xp, current_streak, full_name, avatar_url')
     .eq('id', user.id)
     .single();
+
+  if (profileError) {
+    // Profile may not exist yet — use fallback values
+  }
 
   return (
     <DashboardShell

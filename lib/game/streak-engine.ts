@@ -18,7 +18,9 @@ export async function getStreakInfo(userId: string): Promise<StreakInfo> {
     .eq('id', userId)
     .single();
 
-  if (error) throw error;
+  if (error || !data) {
+    return { currentStreak: 0, longestStreak: 0, lastActiveDate: null, streakBonus: 0 };
+  }
 
   const profile = data as { current_streak: number; longest_streak: number; last_active_date: string | null };
 

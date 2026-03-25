@@ -8,7 +8,7 @@ import { LEVEL_TITLES, BADGE_RARITIES } from '@/lib/constants';
 
 interface ProfileData {
   id: string;
-  display_name: string;
+  full_name: string;
   avatar_url: string | null;
   email: string;
   level: number;
@@ -95,7 +95,7 @@ export default function ProfileClient({
   badgesEarned,
 }: ProfileClientProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(profile.display_name);
+  const [editName, setEditName] = useState(profile.full_name);
   const [saving, setSaving] = useState(false);
 
   async function handleSaveProfile(e: React.FormEvent) {
@@ -107,7 +107,7 @@ export default function ProfileClient({
       await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: editName.trim() }),
+        body: JSON.stringify({ full_name: editName.trim() }),
       });
       window.location.reload();
     } catch {
@@ -139,19 +139,19 @@ export default function ProfileClient({
             {profile.avatar_url ? (
               <img
                 src={profile.avatar_url}
-                alt={profile.display_name}
+                alt={profile.full_name}
                 className="w-full h-full object-cover"
               />
             ) : (
               <span className="text-3xl font-display font-bold text-ecs-amber">
-                {profile.display_name.charAt(0).toUpperCase()}
+                {profile.full_name.charAt(0).toUpperCase()}
               </span>
             )}
           </div>
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-2 mb-2">
               <h1 className="font-display text-2xl font-bold text-white">
-                {profile.display_name}
+                {profile.full_name}
               </h1>
               <span className="badge-level mx-auto md:mx-0">
                 Niv. {profile.level} &middot; {LEVEL_TITLES[profile.level] ?? `Niveau ${profile.level}`}

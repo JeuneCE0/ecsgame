@@ -50,7 +50,7 @@ export async function getAvailableQuests(userId: string, orgId: string): Promise
     .or(`starts_at.is.null,starts_at.lte.${now}`)
     .or(`expires_at.is.null,expires_at.gte.${now}`);
 
-  if (questsError) throw questsError;
+  if (questsError) return [];
 
   const typedQuests = quests as Quest[];
 
@@ -59,7 +59,7 @@ export async function getAvailableQuests(userId: string, orgId: string): Promise
     .select('id, quest_id, progress, status, completed_at, claimed_at')
     .eq('user_id', userId);
 
-  if (userQuestsError) throw userQuestsError;
+  if (userQuestsError) return typedQuests.map((q) => ({ ...q, user_quest: null }));
 
   const typedUserQuests = userQuests as { id: string; quest_id: string; progress: number; status: QuestStatus; completed_at: string | null; claimed_at: string | null }[];
   const userQuestMap = new Map(typedUserQuests.map((uq) => [uq.quest_id, uq]));

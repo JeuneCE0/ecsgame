@@ -10,8 +10,8 @@ import { LEVEL_TITLES } from '@/lib/constants';
 type TabKey = 'global' | 'weekly' | 'organization';
 
 interface LeaderboardEntry {
-  id: string;
-  display_name: string;
+  user_id: string;
+  full_name: string;
   avatar_url: string | null;
   level: number;
   total_xp: number;
@@ -78,7 +78,7 @@ export default function LeaderboardPage() {
 
       let query = supabase
         .from('leaderboard_view')
-        .select('id, display_name, avatar_url, level, total_xp, weekly_xp');
+        .select('user_id, full_name, avatar_url, level, total_xp, weekly_xp');
 
       if (tab === 'weekly') {
         query = query.order('weekly_xp', { ascending: false });
@@ -215,11 +215,11 @@ export default function LeaderboardPage() {
 
             {entries.map((entry, index) => {
               const rank = index + 1;
-              const isCurrentUser = entry.id === currentUserId;
+              const isCurrentUser = entry.user_id === currentUserId;
 
               return (
                 <motion.div
-                  key={entry.id}
+                  key={entry.user_id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.04 }}
@@ -236,12 +236,12 @@ export default function LeaderboardPage() {
                       {entry.avatar_url ? (
                         <img
                           src={entry.avatar_url}
-                          alt={entry.display_name}
+                          alt={entry.full_name}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <span className="text-ecs-gray font-display font-bold text-sm">
-                          {entry.display_name.charAt(0).toUpperCase()}
+                          {entry.full_name.charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
@@ -250,7 +250,7 @@ export default function LeaderboardPage() {
                         'font-display font-bold text-sm truncate',
                         isCurrentUser ? 'text-ecs-amber' : 'text-white'
                       )}>
-                        {entry.display_name}
+                        {entry.full_name}
                         {isCurrentUser && <span className="text-xs ml-1 text-ecs-amber/70">(vous)</span>}
                       </p>
                       <p className="text-xs text-ecs-gray">
@@ -270,12 +270,12 @@ export default function LeaderboardPage() {
                       {entry.avatar_url ? (
                         <img
                           src={entry.avatar_url}
-                          alt={entry.display_name}
+                          alt={entry.full_name}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <span className="text-ecs-gray font-display font-bold text-sm">
-                          {entry.display_name.charAt(0).toUpperCase()}
+                          {entry.full_name.charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
@@ -284,7 +284,7 @@ export default function LeaderboardPage() {
                         'font-display font-bold text-sm truncate',
                         isCurrentUser ? 'text-ecs-amber' : 'text-white'
                       )}>
-                        {entry.display_name}
+                        {entry.full_name}
                         {isCurrentUser && <span className="text-xs ml-1 text-ecs-amber/70">(vous)</span>}
                       </p>
                       <p className="text-xs text-ecs-gray">

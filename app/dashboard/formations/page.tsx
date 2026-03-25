@@ -15,8 +15,8 @@ export default async function FormationsPage() {
 
   const { data: formations, error: formationsError } = await supabase
     .from('formations')
-    .select('id, title, description, thumbnail_url, duration_minutes, xp_reward, is_active, created_at')
-    .eq('is_active', true)
+    .select('id, title, description, thumbnail_url, duration_minutes, xp_reward, is_published, created_at')
+    .eq('is_published', true)
     .order('created_at', { ascending: false });
 
   if (formationsError) {
@@ -29,7 +29,7 @@ export default async function FormationsPage() {
 
   const { data: userFormations, error: userFormationsError } = await supabase
     .from('user_formations')
-    .select('id, formation_id, progress_percent, status, started_at, completed_at')
+    .select('id, formation_id, progress_percent, completed_at, created_at')
     .eq('user_id', user.id);
 
   if (userFormationsError) {
@@ -47,7 +47,7 @@ export default async function FormationsPage() {
     thumbnail_url: string | null;
     duration_minutes: number;
     xp_reward: number;
-    is_active: boolean;
+    is_published: boolean;
     created_at: string;
   };
 
@@ -55,9 +55,8 @@ export default async function FormationsPage() {
     id: string;
     formation_id: string;
     progress_percent: number;
-    status: string;
-    started_at: string | null;
     completed_at: string | null;
+    created_at: string;
   };
 
   const typedFormations = (formations ?? []) as FormationRow[];
@@ -73,9 +72,8 @@ export default async function FormationsPage() {
         ? {
             id: uf.id,
             progress_percent: uf.progress_percent,
-            status: uf.status,
-            started_at: uf.started_at,
             completed_at: uf.completed_at,
+            created_at: uf.created_at,
           }
         : null,
     };

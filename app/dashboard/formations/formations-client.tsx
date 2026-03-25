@@ -14,14 +14,13 @@ interface FormationWithProgress {
   thumbnail_url: string | null;
   duration_minutes: number;
   xp_reward: number;
-  is_active: boolean;
+  is_published: boolean;
   created_at: string;
   user_formation: {
     id: string;
     progress_percent: number;
-    status: string;
-    started_at: string | null;
     completed_at: string | null;
+    created_at: string;
   } | null;
 }
 
@@ -42,7 +41,7 @@ function getStatusInfo(formation: FormationWithProgress): {
   if (!formation.user_formation) {
     return { label: 'Commencer', variant: 'start' };
   }
-  if (formation.user_formation.status === 'completed') {
+  if (formation.user_formation.completed_at) {
     return { label: 'Termin\u00e9', variant: 'done' };
   }
   return { label: 'Continuer', variant: 'continue' };
@@ -61,10 +60,10 @@ export default function FormationsClient({ formations }: FormationsClientProps) 
   const filteredFormations = formations.filter((f) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'in_progress') {
-      return f.user_formation && f.user_formation.status !== 'completed';
+      return f.user_formation && !f.user_formation.completed_at;
     }
     if (activeFilter === 'completed') {
-      return f.user_formation?.status === 'completed';
+      return !!f.user_formation?.completed_at;
     }
     return true;
   });

@@ -58,7 +58,7 @@ export default function OnboardingPage() {
       if (!user) throw new Error('Non authentifi\u00e9');
 
       const updatePayload: Record<string, unknown> = {
-        display_name: displayName.trim(),
+        full_name: displayName.trim(),
         onboarding_completed: true,
       };
 

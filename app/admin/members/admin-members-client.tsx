@@ -8,7 +8,7 @@ import { LEVEL_TITLES } from '@/lib/constants';
 
 interface MemberRow {
   id: string;
-  display_name: string;
+  full_name: string;
   email: string;
   avatar_url: string | null;
   level: number;
@@ -48,7 +48,7 @@ export default function AdminMembersClient({ members }: AdminMembersClientProps)
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      m.display_name.toLowerCase().includes(q) ||
+      m.full_name.toLowerCase().includes(q) ||
       m.email.toLowerCase().includes(q)
     );
   });
@@ -192,12 +192,12 @@ export default function AdminMembersClient({ members }: AdminMembersClientProps)
                   {member.avatar_url ? (
                     <img
                       src={member.avatar_url}
-                      alt={member.display_name}
+                      alt={member.full_name}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <span className="text-ecs-gray font-display font-bold text-sm">
-                      {member.display_name.charAt(0).toUpperCase()}
+                      {member.full_name.charAt(0).toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -206,7 +206,7 @@ export default function AdminMembersClient({ members }: AdminMembersClientProps)
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-display font-bold text-white text-sm truncate">
-                      {member.display_name}
+                      {member.full_name}
                     </p>
                     <span className={cn('text-xs font-display', ROLE_COLORS[member.role] ?? 'text-ecs-gray')}>
                       {ROLE_LABELS[member.role] ?? member.role}

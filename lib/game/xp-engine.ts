@@ -108,7 +108,9 @@ export async function getUserXPStats(userId: string): Promise<UserXPStats> {
     .eq('id', userId)
     .single();
 
-  if (profileError) throw profileError;
+  if (profileError || !profile) {
+    return { totalXP: 0, level: 1, currentLevelXP: 0, nextLevelXP: 100, progressPercent: 0, weeklyXP: 0 };
+  }
 
   const totalXP = Number(profile.total_xp);
   const currentLevel = profile.level as number;
@@ -119,7 +121,9 @@ export async function getUserXPStats(userId: string): Promise<UserXPStats> {
     .in('level', [currentLevel, currentLevel + 1])
     .order('level', { ascending: true });
 
-  if (thresholdsError) throw thresholdsError;
+  if (thresholdsError) {
+    return { totalXP, level: currentLevel, currentLevelXP: 0, nextLevelXP: 100, progressPercent: 0, weeklyXP: 0 };
+  }
 
   const typedThresholds = thresholds as LevelThreshold[];
   const currentThreshold = typedThresholds.find((t) => t.level === currentLevel);
@@ -141,9 +145,9 @@ export async function getUserXPStats(userId: string): Promise<UserXPStats> {
     .in('verification_status', ['auto_verified', 'approved'])
     .gte('created_at', weekStart);
 
-  if (weeklyError) throw weeklyError;
-
-  const weeklyXP = (weeklyData as { amount: number }[]).reduce((sum, e) => sum + e.amount, 0);
+  const weeklyXP = weeklyError
+    ? 0
+    : (weeklyData as { amount: number }[]).reduce((sum, e) => sum + e.amount, 0);
 
   return {
     totalXP,
@@ -165,7 +169,7 @@ export async function getXPHistory(userId: string, limit: number = 20): Promise<
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) throw error;
+  if (error) return [];
 
   return data as XPEvent[];
 }

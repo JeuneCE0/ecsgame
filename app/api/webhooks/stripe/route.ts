@@ -24,16 +24,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  const subscriptionId =
-    typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription.id;
-
   const { error } = await supabase
     .from('organizations')
     .update({
-      stripe_subscription_id: subscriptionId,
       stripe_customer_id: session.customer as string,
+      subscription_status: 'active',
       updated_at: new Date().toISOString(),
     })
     .eq('id', orgId);
@@ -48,13 +43,19 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const priceId = getSubscriptionPriceId(subscription);
   const tier = mapPriceToTier(priceId);
 
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer.id;
+
   const { error } = await supabase
     .from('organizations')
     .update({
       subscription_tier: tier,
+      subscription_status: subscription.status === 'active' ? 'active' : 'inactive',
       updated_at: new Date().toISOString(),
     })
-    .eq('stripe_subscription_id', subscription.id);
+    .eq('stripe_customer_id', customerId);
 
   if (error) {
     throw new Error(`Failed to update subscription tier: ${error.message}`);
@@ -64,42 +65,27 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const supabase = createAdminClient();
 
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer.id;
+
   const { error } = await supabase
     .from('organizations')
     .update({
       subscription_tier: 'free',
-      stripe_subscription_id: null,
+      subscription_status: 'inactive',
       updated_at: new Date().toISOString(),
     })
-    .eq('stripe_subscription_id', subscription.id);
+    .eq('stripe_customer_id', customerId);
 
   if (error) {
     throw new Error(`Failed to downgrade subscription: ${error.message}`);
   }
 }
 
-async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  const supabase = createAdminClient();
-
-  const customerId =
-    typeof invoice.customer === 'string'
-      ? invoice.customer
-      : invoice.customer?.id ?? null;
-
-  if (!customerId) return;
-
-  const { error } = await supabase.from('billing_events').insert({
-    stripe_customer_id: customerId,
-    stripe_invoice_id: invoice.id,
-    amount_paid: invoice.amount_paid,
-    currency: invoice.currency,
-    status: invoice.status,
-    created_at: new Date().toISOString(),
-  });
-
-  if (error) {
-    throw new Error(`Failed to log billing event: ${error.message}`);
-  }
+async function handleInvoicePaymentSucceeded(_invoice: Stripe.Invoice) {
+  // billing_events table does not exist in schema — skip logging for now
 }
 
 export async function POST(request: NextRequest) {

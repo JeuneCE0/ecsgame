@@ -15,7 +15,7 @@ export default async function ProfilePage() {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, display_name, avatar_url, email, level, total_xp, current_streak, longest_streak, last_active_date, created_at, organization_id')
+    .select('id, full_name, avatar_url, email, level, total_xp, current_streak, longest_streak, last_active_date, created_at, organization_id')
     .eq('id', user.id)
     .single();
 
@@ -60,7 +60,7 @@ export default async function ProfilePage() {
 
   type ProfileData = {
     id: string;
-    display_name: string;
+    full_name: string;
     avatar_url: string | null;
     email: string;
     level: number;

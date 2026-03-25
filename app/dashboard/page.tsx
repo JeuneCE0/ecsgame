@@ -19,21 +19,34 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('display_name, avatar_url, organization_id')
+    .select('full_name, avatar_url, organization_id')
     .eq('id', user.id)
     .single();
 
-  const displayName = (profile?.display_name as string) ?? 'Joueur';
+  if (profileError) {
+    // Profile may not exist yet — use fallback values
+  }
+
+  const displayName = (profile?.full_name as string) ?? 'Joueur';
   const orgId = (profile?.organization_id as string) ?? SCALE_CORP_ORG_ID;
 
-  const [xpStats, streakInfo, quests, recentXP] = await Promise.all([
-    getUserXPStats(user.id),
-    getStreakInfo(user.id),
-    getAvailableQuests(user.id, orgId),
-    getXPHistory(user.id, 10),
-  ]);
+  let xpStats = { totalXP: 0, level: 1, currentLevelXP: 0, nextLevelXP: 100, progressPercent: 0, weeklyXP: 0 };
+  let streakInfo = { currentStreak: 0, longestStreak: 0 };
+  let quests: Awaited<ReturnType<typeof getAvailableQuests>> = [];
+  let recentXP: Awaited<ReturnType<typeof getXPHistory>> = [];
+
+  try {
+    [xpStats, streakInfo, quests, recentXP] = await Promise.all([
+      getUserXPStats(user.id),
+      getStreakInfo(user.id),
+      getAvailableQuests(user.id, orgId),
+      getXPHistory(user.id, 10),
+    ]);
+  } catch {
+    // One or more data sources failed — use fallback values
+  }
 
   const todayQuests = quests
     .filter((q) => q.quest_type === 'daily')
